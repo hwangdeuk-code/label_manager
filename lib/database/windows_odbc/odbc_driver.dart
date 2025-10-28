@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
-
 import 'package:label_manager/utils/debugview_logger.dart';
 
 import '../drivers/db_driver.dart';
@@ -565,7 +563,7 @@ class OdbcMssqlDriver implements DbDriver {
 
   void _log(String message) {
     if (_logger != null) {
-      _logger!(message);
+      _logger(message);
     }
     if (Platform.isWindows) {
       try {
