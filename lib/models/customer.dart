@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Customer {
@@ -24,21 +23,14 @@ class Customer {
     instance = customer;
   }
 
-  factory Customer.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
-
-    if (parts.length < 2) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    final customerId = int.tryParse(parts[0].trim()) ?? 0;
-    final cooperatorId = parts[1].trim();
-    final customerName = parts[2].trim();
+  factory Customer.fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
+    int i(String key) => int.tryParse(s(key)) ?? 0;
 
     return Customer(
-      customerId: customerId,
-      cooperatorId: cooperatorId,
-      customerName: customerName,
+      customerId:   i('CUSTOMER_ID'),
+      cooperatorId: s('COOP_ID'),
+      customerName: s('NAME'),
     );
   }
 
@@ -52,12 +44,9 @@ class CustomerDAO extends DAO {
 
   static const String SelectSql = '''
 		SELECT
-			CONVERT(VARBINARY(300),
-        CONCAT_WS(N'${DAO.SPLITTER}',
-          COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(30), RICH_COOP_ID COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'')
-			)) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N'') AS CUSTOMER_ID,
+      COALESCE(CONVERT(NVARCHAR(30), RICH_COOP_ID COLLATE ${DAO.CP949}), N'') AS COOP_ID,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'') AS NAME
 		FROM BM_CUSTOMER
   ''';
 
@@ -72,19 +61,13 @@ class CustomerDAO extends DAO {
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlCustomerId', { 'customerId': customerId },
-				timeout: const Duration(seconds: DAO.query_timeouts)
+				'$SelectSql $WhereSqlCustomerId', { 'customerId': customerId }
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
-
-      if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
-        return null;
-      }
+      final map = DAO.getRowMapFromResult(res);
   
       debugPrint('$cn.$fn: $END');
-      return Customer.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+      return Customer.fromMap(map);
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');

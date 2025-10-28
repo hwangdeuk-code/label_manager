@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 import 'dao.dart';
 
 enum UserGrade {
@@ -57,29 +56,18 @@ class User {
     instance = user;
   }
 
-  factory User.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
-
-    if (parts.length < 2) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    final userId = parts[0].trim();
-    final marketId = int.tryParse(parts[1].trim()) ?? 0;
-    final name = parts[2].trim();
-    final pwd = parts[3].trim();
-    final grade = UserGrade.fromCode(int.tryParse(parts[4].trim()) ?? 0);
-    final marketName = parts[5].trim();
-    final customerName = parts[6].trim();
+	static User fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
+    int i(String key) => int.tryParse(s(key)) ?? 0;
 
     return User(
-      userId: userId,
-      marketId: marketId,
-      name: name,
-      pwd: pwd,
-      grade: grade,
-      marketName: marketName,
-      customerName: customerName,
+      userId:       s('USER_ID'),
+      marketId:     i('MARKET_ID'),
+      name:         s('NAME'),
+      pwd:          s('PASSWORD'),
+      grade:        UserGrade.fromCode(i('GRADE')),
+      marketName:   s('MARKET_NAME'),
+      customerName: s('CUSTOMER_NAME'),
     );
   }
 
@@ -93,16 +81,13 @@ class UserDAO extends DAO {
 
   static const String SelectSql = '''
     SELECT
-			CONVERT(VARBINARY(1000),
-        CONCAT_WS(N'${DAO.SPLITTER}',
-          COALESCE(CONVERT(NVARCHAR(30), P1.RICH_USER_ID COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(20), P1.RICH_MARKET_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(50), P1.RICH_NAME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(20), P1.RICH_PWD COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(20), P1.RICH_USER_GRADE), N''),
-          COALESCE(CONVERT(NVARCHAR(50), P2.RICH_NAME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), P3.RICH_NAME COLLATE ${DAO.CP949}), N'')
-			)) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(30), P1.RICH_USER_ID COLLATE ${DAO.CP949}), N'') AS USER_ID,
+      COALESCE(CONVERT(NVARCHAR(20), P1.RICH_MARKET_ID), N'') as MARKET_ID,
+      COALESCE(CONVERT(NVARCHAR(50), P1.RICH_NAME COLLATE ${DAO.CP949}), N'') AS NAME,
+      COALESCE(CONVERT(NVARCHAR(20), P1.RICH_PWD COLLATE ${DAO.CP949}), N'') AS PASSWORD,
+      COALESCE(CONVERT(NVARCHAR(20), P1.RICH_USER_GRADE), N'') AS GRADE,
+      COALESCE(CONVERT(NVARCHAR(50), P2.RICH_NAME COLLATE ${DAO.CP949}), N'') AS MARKET_NAME,
+      COALESCE(CONVERT(NVARCHAR(50), P3.RICH_NAME COLLATE ${DAO.CP949}), N'') AS CUSTOMER_NAME
 		FROM
       BM_USER P1
       INNER JOIN BM_MARKET P2
@@ -124,18 +109,13 @@ class UserDAO extends DAO {
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlUserId', { 'userId': userId },
-				timeout: const Duration(seconds: DAO.query_timeouts)
+				'$SelectSql $WhereSqlUserId', { 'userId': userId }
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
+      final map = DAO.getRowMapFromResult(res);
 
-      if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
-        return null;
-      }
-
-      return User.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+      debugPrint('$cn.$fn: $END');
+      return User.fromMap(map);
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');

@@ -5,7 +5,7 @@ import 'package:label_manager/models/label_size.dart';
 class HomePageManagerLogic {
   Future<List<Brand>> fetchBrands(int customerId) async {
     final rows = await BrandDAO.getByCustomerIdByBrandOrder(customerId) ?? <Brand>[];
-    Brand.setBrands(rows);
+    Brand.setDatas(rows);
     return rows;
   }
 

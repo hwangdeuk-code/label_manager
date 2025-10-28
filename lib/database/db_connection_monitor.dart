@@ -15,6 +15,7 @@ class DbConnectionMonitor {
   bool? _isUp;
   final StreamController<bool> _statusCtrl = StreamController<bool>.broadcast();
   bool _checking = false;
+  bool _disposed = false;
 
   Stream<bool> get statusStream => _statusCtrl.stream; // true: up, false: down
   bool? get lastStatus => _isUp;
@@ -27,6 +28,7 @@ class DbConnectionMonitor {
   });
 
   void start({bool immediate = true}) {
+    if (_disposed) return;
     _timer?.cancel();
     // 옵션에 따라 즉시 1회 점검 후 주기 시작
     if (immediate) {
@@ -41,26 +43,29 @@ class DbConnectionMonitor {
   }
 
   Future<void> _check() async {
-    if (_checking) return; // 재진입 방지
+    if (_checking || _disposed) return; // ������ ����
     _checking = true;
-    final ok = await _pingSafe();
-    
-    if (_isUp == null) {
-      _isUp = ok;
-      _statusCtrl.add(ok);
-      _checking = false;
-      return;
-    }
-    if (_isUp != ok) {
-      _isUp = ok;
-      _statusCtrl.add(ok);
-      if (ok) {
-        onRestored?.call();
-      } else {
-        onLost?.call();
+    try {
+      final ok = await _pingSafe();
+      if (_disposed) return;
+
+      if (_isUp == null) {
+        _isUp = ok;
+        _emitStatus(ok);
+        return;
       }
+      if (_isUp != ok) {
+        _isUp = ok;
+        _emitStatus(ok);
+        if (ok) {
+          onRestored?.call();
+        } else {
+          onLost?.call();
+        }
+      }
+    } finally {
+      _checking = false;
     }
-    _checking = false;
   }
 
   Future<bool> _pingSafe() async {
@@ -68,23 +73,38 @@ class DbConnectionMonitor {
       if (customPing != null) {
         return await customPing!();
       }
-      // 기본 핑: SELECT 1
-  final s = await DbClient.instance.getData('SELECT 1');
+      // �⺻ ��: SELECT 1
+      final s = await DbClient.instance.getData('SELECT 1');
       try {
         final j = jsonDecode(s);
         if (j is Map && j['error'] != null) return false;
         return true;
       } catch (_) {
-        // 예상치 못한 응답 포맷이면 일단 성공으로 간주(네트워크·세션 오류는 예외로 떨어지는 편)
+        // ����ġ ���� ���� �����̸� �ϴ� �������� ����(��Ʈ��ũ������ ������ ���ܷ� �������� ��)
         return true;
       }
     } catch (_) {
-      return false; // 예외 = 연결 실패로 판단
+      return false; // ���� = ���� ���з� �Ǵ�
     }
   }
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
     stop();
     await _statusCtrl.close();
   }
+
+  void _emitStatus(bool value) {
+    if (_disposed) return;
+    try {
+      _statusCtrl.add(value);
+    } on StateError {
+      // controller already closed
+    }
+  }
 }
+
+
+
+

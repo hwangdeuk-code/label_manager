@@ -1,4 +1,6 @@
-﻿import 'package:dropdown_button2/dropdown_button2.dart';
+﻿import 'dart:async';
+import 'package:collection/collection.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
@@ -30,7 +32,13 @@ class HomePageManager extends StatefulWidget {
 }
 
 class _HomePageManagerState extends State<HomePageManager> {
-  static const cn = '_HomePageManagerState';
+  void _trace(String msg) {
+    if (!traceLogEnabled) return;
+    final now = DateTime.now().toIso8601String();
+    // ignore: avoid_print
+    print('[TRACE][HomePageManager][$now] $msg');
+  }
+	
   final HomePageManagerLogic _logic = HomePageManagerLogic();
   late final TabbedViewController _tabController;
   final TextEditingController _tabSearchController = TextEditingController();
@@ -40,16 +48,10 @@ class _HomePageManagerState extends State<HomePageManager> {
   @override
   void initState() {
     super.initState();
-    const String fn = 'initState';
-    debugPrint('$cn.$fn');
-
     _tabController = TabbedViewController(_buildInitialTabs());
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      const String fn = 'initState.initState callback';
-      debugPrint('$cn.$fn: isMounted=$mounted');
       if (mounted) {
-        _loadBrands();
+        await _loadBrands();
       }
     });
   }
@@ -82,7 +84,7 @@ class _HomePageManagerState extends State<HomePageManager> {
     final target = _findBrandByName(brandName);
     if (target == null) {
       _labelSizesBrandId = null;
-      LabelSize.setLabelSizes(<LabelSize>[]);
+      LabelSize.setDatas(<LabelSize>[]);
       setState(() {});
       widget.onLabelSizeChanged(null);
       return;
@@ -107,12 +109,12 @@ class _HomePageManagerState extends State<HomePageManager> {
 
     final token = ++_labelLoadToken;
     _labelSizesBrandId = null;
-    LabelSize.setLabelSizes(<LabelSize>[]);
+    LabelSize.setDatas(<LabelSize>[]);
     setState(() {});
 
     _logic.fetchLabelSizes(target.brandId).then((labelSizes) {
       if (!mounted || token != _labelLoadToken) return;
-      LabelSize.setLabelSizes(labelSizes);
+      LabelSize.setDatas(labelSizes);
       _labelSizesBrandId = target.brandId;
       setState(() {});
 
@@ -137,37 +139,46 @@ class _HomePageManagerState extends State<HomePageManager> {
   }
 
   Future<void> _loadBrands() async {
-    const String fn = '_loadBrands';
 
-    try {
-      debugPrint('$cn.$fn: $START');
-      showSnackBar(context, '사용자 데이터를 불러오고 있습니다...', type: SnackBarType.inProgress);
+    void afterSnackBarVisible() async {
+      try {
+        final brands = await _logic.fetchBrands(Customer.instance!.customerId);
+        if (!mounted) return;
 
-      final brands = await _logic.fetchBrands(Customer.instance!.customerId);
+        // brands가 기존과 다를 때만 setState
+        final prevBrands = Brand.datas ?? <Brand>[];
+        final listEq = const ListEquality<Brand>();
+        bool changed = prevBrands.length != brands.length || !listEq.equals(prevBrands, brands);
+        if (changed) {
+          setState(() {});
+        }
 
-      if (!mounted) return;
-      setState(() {});
+        final resolved = _logic.resolveSelectedBrand(
+          brands,
+          widget.selectedBrand,
+        );
 
-      final resolved = _logic.resolveSelectedBrand(
-        brands,
-        widget.selectedBrand,
-      );
+        final fallback = _logic.firstBrandName(brands);
 
-      final fallback = _logic.firstBrandName(brands);
+        if (resolved == null && fallback != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            widget.onBrandChanged(fallback);
+          });
+        }
 
-      if (resolved == null && fallback != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          widget.onBrandChanged(fallback);
-        });
+        final targetName = resolved ?? fallback ?? widget.selectedBrand;
+        _scheduleLabelSizeLoad(targetName);
+      } finally {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
+    }
 
-      final targetName = resolved ?? fallback ?? widget.selectedBrand;
-      _scheduleLabelSizeLoad(targetName);
-    }
-	  finally {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      debugPrint('$cn.$fn: $END');
-    }
+    showSnackBar(
+      context,
+      '사용자 데이터를 불러오고 있습니다...',
+      type: SnackBarType.inProgress,
+      onVisible: afterSnackBarVisible,
+    );
   }
 
   List<TabData> _buildInitialTabs() {
@@ -346,7 +357,8 @@ class _HomePageManagerState extends State<HomePageManager> {
 
   @override
   Widget build(BuildContext context) {
-    final tabbedView = TabbedViewTheme(
+  final sw = Stopwatch()..start();
+  final tabbedView = TabbedViewTheme(
       data: _buildTabbedTheme(),
       child: TabbedView(
         controller: _tabController,
@@ -367,7 +379,7 @@ class _HomePageManagerState extends State<HomePageManager> {
       widget.selectedLabelSize,
     );
 
-    return Column(
+  final result = Column(
       children: [
         // 상단 컨트롤 영역
         Padding(
@@ -408,6 +420,9 @@ class _HomePageManagerState extends State<HomePageManager> {
         ),
       ],
     );
+    sw.stop();
+    _trace('build: END (${sw.elapsedMilliseconds}ms)');
+    return result;
   }
 }
 

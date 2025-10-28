@@ -5,39 +5,32 @@ import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/models/dao.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 
 class NoticeDAO extends DAO {
   static const String cn = 'NoticeDAO';
   static const String Sql = '''
     SELECT
-      CONVERT(VARBINARY(6000),
-        COALESCE(CONVERT(NVARCHAR(3000), UN_MSG COLLATE ${DAO.CP949}), N'')
-      ) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(3000), UN_MSG COLLATE ${DAO.CP949}), N'') AS UN_MSG
     FROM
       BM_UPDATE_NOTICE
     WHERE
       LTRIM(RTRIM(CONVERT(NVARCHAR(30),UN_USER_ID COLLATE ${DAO.CP949}))) =
       LTRIM(RTRIM(CONVERT(NVARCHAR(30),@userId)));
   ''';
-
+ 
   static Future<String> getByUserId(String userId) async {
     const String fn = 'getByUserId';
     debugPrint('$cn.$fn: $START, userId:$userId');
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				Sql, { 'userId': userId }, timeout: const Duration(seconds: DAO.query_timeouts)
+        Sql, { 'userId': userId }
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
-
-      if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: $END ${DAO.query_no_data}');
-        return '';
-      }
-
-      return decodeUtf16LeFromBase64String(base64Str);
+      final map = DAO.getRowMapFromResult(res);
+      
+      debugPrint('$cn.$fn: $END');
+      return map.values.first as String;
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');

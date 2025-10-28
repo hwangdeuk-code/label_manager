@@ -1,0 +1,423 @@
+import 'dart:ffi';
+import 'package:ffi/ffi.dart';
+
+/// ODBC 요소에 필요한 상수 정의
+class OdbcConst {
+  OdbcConst._();
+
+  static const int sqlNullHandle = 0;
+  static const int sqlHandleEnv = 1;
+  static const int sqlHandleDbc = 2;
+  static const int sqlHandleStmt = 3;
+
+  static const int sqlSuccess = 0;
+  static const int sqlSuccessWithInfo = 1;
+  static const int sqlNoData = 100;
+
+  static const int sqlAttrOdbcVersion = 200;
+  static const int sqlOdbcVer = 3;
+
+  static const int sqlDisconnect = 0;
+  static const int sqlBindByColumn = 0;
+
+  static const int sqlFreeStmtClose = 0;
+  static const int sqlFreeStmtUnbind = 2;
+  static const int sqlFreeStmtResetParams = 3;
+
+  static const int sqlDataAtExec = -2;
+
+  static const int sqlParamInput = 1;
+  static const int sqlCChar = 1;
+  static const int sqlCWChar = -8;
+  static const int sqlCBinary = -2;
+  static const int sqlCBit = -7;
+  static const int sqlCShort = 5;
+  static const int sqlCLong = 4;
+  static const int sqlCFloat = 7;
+  static const int sqlCDouble = 8;
+  static const int sqlCTypeTimestamp = 93;
+
+  static const int sqlNts = -3;
+
+  static const int sqlTypeChar = 1;
+  static const int sqlTypeWchar = -8;
+  static const int sqlTypeBinary = -2;
+  static const int sqlTypeVarbinary = -3;
+  static const int sqlTypeLongvarbinary = -4;
+  static const int sqlTypeBit = -7;
+  static const int sqlTypeTinyint = -6;
+  static const int sqlTypeSmallint = 5;
+  static const int sqlTypeInteger = 4;
+  static const int sqlTypeBigint = -5;
+  static const int sqlTypeFloat = 6;
+  static const int sqlTypeDouble = 8;
+  static const int sqlTypeDecimal = 3;
+  static const int sqlTypeNumeric = 2;
+  static const int sqlTypeReal = 7;
+  static const int sqlTypeWvarchar = -9;
+  static const int sqlTypeWlongvarchar = -10;
+  static const int sqlTypeTimestamp = 11;
+
+  static const int sqlNtchar = -16;
+  static const int sqlNtvarchar = -10;
+  static const int sqlLongvarchar = -1;
+
+  static const int sqlDescLabel = 1009;
+
+  static const int sqlNullData = -1;
+  static const int sqlColumnNullableUnknown = 2;
+
+  static const int sqlDiaTypeMessageText = 6;
+  static const int sqlMaxMessageLength = 1024;
+}
+
+/// FFI 연결에 사용되는 구조체 정의
+final class SqlTimestampStruct extends Struct {
+  @Int16()
+  external int year;
+
+  @Int16()
+  external int month;
+
+  @Int16()
+  external int day;
+
+  @Int16()
+  external int hour;
+
+  @Int16()
+  external int minute;
+
+  @Int16()
+  external int second;
+
+  @Int32()
+  external int fraction;
+}
+
+typedef SqlAllocHandleNative =
+    Int16 Function(
+      Uint16 handleType,
+      Pointer<Void> inputHandle,
+      Pointer<Pointer<Void>> outputHandle,
+    );
+typedef SqlAllocHandle =
+    int Function(
+      int handleType,
+      Pointer<Void> inputHandle,
+      Pointer<Pointer<Void>> outputHandle,
+    );
+
+typedef SqlFreeHandleNative =
+    Int16 Function(Uint16 handleType, Pointer<Void> handle);
+typedef SqlFreeHandle = int Function(int handleType, Pointer<Void> handle);
+
+typedef SqlSetEnvAttrNative =
+    Int16 Function(
+      Pointer<Void> handle,
+      Int32 attribute,
+      IntPtr valuePtr,
+      Int32 stringLength,
+    );
+typedef SqlSetEnvAttr =
+    int Function(
+      Pointer<Void> handle,
+      int attribute,
+      int valuePtr,
+      int stringLength,
+    );
+
+typedef SqlDriverConnectWNative =
+    Int16 Function(
+      Pointer<Void> connectionHandle,
+      Pointer<Void> windowHandle,
+      Pointer<Utf16> inConnectionString,
+      Int16 stringLength1,
+      Pointer<Utf16> outConnectionString,
+      Int16 bufferLength,
+      Pointer<Int16> stringLength2Ptr,
+      Uint16 driverCompletion,
+    );
+typedef SqlDriverConnectW =
+    int Function(
+      Pointer<Void> connectionHandle,
+      Pointer<Void> windowHandle,
+      Pointer<Utf16> inConnectionString,
+      int stringLength1,
+      Pointer<Utf16> outConnectionString,
+      int bufferLength,
+      Pointer<Int16> stringLength2Ptr,
+      int driverCompletion,
+    );
+
+typedef SqlDisconnectNative = Int16 Function(Pointer<Void> connectionHandle);
+typedef SqlDisconnect = int Function(Pointer<Void> connectionHandle);
+
+typedef SqlFreeStmtNative =
+    Int16 Function(Pointer<Void> statementHandle, Uint16 option);
+typedef SqlFreeStmt = int Function(Pointer<Void> statementHandle, int option);
+
+typedef SqlPrepareWNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Pointer<Utf16> statementText,
+      Int32 textLength,
+    );
+typedef SqlPrepareW =
+    int Function(
+      Pointer<Void> statementHandle,
+      Pointer<Utf16> statementText,
+      int textLength,
+    );
+
+typedef SqlExecDirectWNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Pointer<Utf16> statementText,
+      Int32 textLength,
+    );
+typedef SqlExecDirectW =
+    int Function(
+      Pointer<Void> statementHandle,
+      Pointer<Utf16> statementText,
+      int textLength,
+    );
+
+typedef SqlExecuteNative = Int16 Function(Pointer<Void> statementHandle);
+typedef SqlExecute = int Function(Pointer<Void> statementHandle);
+
+typedef SqlBindParameterNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Uint16 parameterNumber,
+      Int16 inputOutputType,
+      Int16 valueType,
+      Int16 parameterType,
+      IntPtr columnSize,
+      Int16 decimalDigits,
+      Pointer<Void> parameterValuePtr,
+      IntPtr bufferLength,
+      Pointer<IntPtr> strLenOrIndPtr,
+    );
+typedef SqlBindParameter =
+    int Function(
+      Pointer<Void> statementHandle,
+      int parameterNumber,
+      int inputOutputType,
+      int valueType,
+      int parameterType,
+      int columnSize,
+      int decimalDigits,
+      Pointer<Void> parameterValuePtr,
+      int bufferLength,
+      Pointer<IntPtr> strLenOrIndPtr,
+    );
+
+typedef SqlNumResultColsNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Pointer<Int16> columnCountPtr,
+    );
+typedef SqlNumResultCols =
+    int Function(Pointer<Void> statementHandle, Pointer<Int16> columnCountPtr);
+
+typedef SqlDescribeColWNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Int16 columnNumber,
+      Pointer<Utf16> columnName,
+      Int16 bufferLength,
+      Pointer<Int16> nameLengthPtr,
+      Pointer<Int16> dataTypePtr,
+      Pointer<IntPtr> columnSizePtr,
+      Pointer<Int16> decimalDigitsPtr,
+      Pointer<Int16> nullablePtr,
+    );
+typedef SqlDescribeColW =
+    int Function(
+      Pointer<Void> statementHandle,
+      int columnNumber,
+      Pointer<Utf16> columnName,
+      int bufferLength,
+      Pointer<Int16> nameLengthPtr,
+      Pointer<Int16> dataTypePtr,
+      Pointer<IntPtr> columnSizePtr,
+      Pointer<Int16> decimalDigitsPtr,
+      Pointer<Int16> nullablePtr,
+    );
+
+typedef SqlFetchNative = Int16 Function(Pointer<Void> statementHandle);
+typedef SqlFetch = int Function(Pointer<Void> statementHandle);
+
+typedef SqlGetDataNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Int16 columnNumber,
+      Int16 targetType,
+      Pointer<Void> targetValuePtr,
+      IntPtr bufferLength,
+      Pointer<IntPtr> strLenOrIndPtr,
+    );
+typedef SqlGetData =
+    int Function(
+      Pointer<Void> statementHandle,
+      int columnNumber,
+      int targetType,
+      Pointer<Void> targetValuePtr,
+      int bufferLength,
+      Pointer<IntPtr> strLenOrIndPtr,
+    );
+
+typedef SqlRowCountNative =
+    Int16 Function(Pointer<Void> statementHandle, Pointer<IntPtr> rowCountPtr);
+typedef SqlRowCount =
+    int Function(Pointer<Void> statementHandle, Pointer<IntPtr> rowCountPtr);
+
+typedef SqlMoreResultsNative = Int16 Function(Pointer<Void> statementHandle);
+typedef SqlMoreResults = int Function(Pointer<Void> statementHandle);
+
+typedef SqlColAttributeWNative =
+    Int16 Function(
+      Pointer<Void> statementHandle,
+      Int16 columnNumber,
+      Int16 fieldIdentifier,
+      Pointer<Void> characterAttributePtr,
+      Int16 bufferLength,
+      Pointer<Int16> stringLengthPtr,
+      Pointer<IntPtr> numericAttributePtr,
+    );
+typedef SqlColAttributeW =
+    int Function(
+      Pointer<Void> statementHandle,
+      int columnNumber,
+      int fieldIdentifier,
+      Pointer<Void> characterAttributePtr,
+      int bufferLength,
+      Pointer<Int16> stringLengthPtr,
+      Pointer<IntPtr> numericAttributePtr,
+    );
+
+typedef SqlGetDiagRecWNative =
+    Int16 Function(
+      Uint16 handleType,
+      Pointer<Void> handle,
+      Uint16 recNumber,
+      Pointer<Utf16> sqlState,
+      Pointer<Int32> nativeErrorPtr,
+      Pointer<Utf16> messageText,
+      Int16 bufferLength,
+      Pointer<Int16> textLengthPtr,
+    );
+typedef SqlGetDiagRecW =
+    int Function(
+      int handleType,
+      Pointer<Void> handle,
+      int recNumber,
+      Pointer<Utf16> sqlState,
+      Pointer<Int32> nativeErrorPtr,
+      Pointer<Utf16> messageText,
+      int bufferLength,
+      Pointer<Int16> textLengthPtr,
+    );
+
+/// ODBC FFI 함수 로더
+class OdbcBindings {
+  OdbcBindings._(DynamicLibrary dll)
+    : sqlAllocHandle = dll.lookupFunction<SqlAllocHandleNative, SqlAllocHandle>(
+        'SQLAllocHandle',
+      ),
+      sqlFreeHandle = dll.lookupFunction<SqlFreeHandleNative, SqlFreeHandle>(
+        'SQLFreeHandle',
+      ),
+      sqlSetEnvAttr = dll.lookupFunction<SqlSetEnvAttrNative, SqlSetEnvAttr>(
+        'SQLSetEnvAttr',
+      ),
+      sqlDriverConnectW = dll
+          .lookupFunction<SqlDriverConnectWNative, SqlDriverConnectW>(
+            'SQLDriverConnectW',
+          ),
+      sqlDisconnect = dll.lookupFunction<SqlDisconnectNative, SqlDisconnect>(
+        'SQLDisconnect',
+      ),
+      sqlFreeStmt = dll.lookupFunction<SqlFreeStmtNative, SqlFreeStmt>(
+        'SQLFreeStmt',
+      ),
+      sqlPrepareW = dll.lookupFunction<SqlPrepareWNative, SqlPrepareW>(
+        'SQLPrepareW',
+      ),
+      sqlExecDirectW = dll.lookupFunction<SqlExecDirectWNative, SqlExecDirectW>(
+        'SQLExecDirectW',
+      ),
+      sqlExecute = dll.lookupFunction<SqlExecuteNative, SqlExecute>(
+        'SQLExecute',
+      ),
+      sqlBindParameter = dll
+          .lookupFunction<SqlBindParameterNative, SqlBindParameter>(
+            'SQLBindParameter',
+          ),
+      sqlNumResultCols = dll
+          .lookupFunction<SqlNumResultColsNative, SqlNumResultCols>(
+            'SQLNumResultCols',
+          ),
+      sqlDescribeColW = dll
+          .lookupFunction<SqlDescribeColWNative, SqlDescribeColW>(
+            'SQLDescribeColW',
+          ),
+      sqlFetch = dll.lookupFunction<SqlFetchNative, SqlFetch>('SQLFetch'),
+      sqlGetData = dll.lookupFunction<SqlGetDataNative, SqlGetData>(
+        'SQLGetData',
+      ),
+      sqlRowCount = dll.lookupFunction<SqlRowCountNative, SqlRowCount>(
+        'SQLRowCount',
+      ),
+      sqlMoreResults = dll.lookupFunction<SqlMoreResultsNative, SqlMoreResults>(
+        'SQLMoreResults',
+      ),
+      sqlGetDiagRecW = dll.lookupFunction<SqlGetDiagRecWNative, SqlGetDiagRecW>(
+        'SQLGetDiagRecW',
+      ),
+      sqlColAttributeW = dll
+          .lookupFunction<SqlColAttributeWNative, SqlColAttributeW>(
+            'SQLColAttributeW',
+          );
+  
+
+  final SqlAllocHandle sqlAllocHandle;
+  final SqlFreeHandle sqlFreeHandle;
+  final SqlSetEnvAttr sqlSetEnvAttr;
+  final SqlDriverConnectW sqlDriverConnectW;
+  final SqlDisconnect sqlDisconnect;
+  final SqlFreeStmt sqlFreeStmt;
+  final SqlPrepareW sqlPrepareW;
+  final SqlExecDirectW sqlExecDirectW;
+  final SqlExecute sqlExecute;
+  final SqlBindParameter sqlBindParameter;
+  final SqlNumResultCols sqlNumResultCols;
+  final SqlDescribeColW sqlDescribeColW;
+  final SqlFetch sqlFetch;
+  final SqlGetData sqlGetData;
+  final SqlRowCount sqlRowCount;
+  final SqlMoreResults sqlMoreResults;
+  final SqlGetDiagRecW sqlGetDiagRecW;
+  final SqlColAttributeW sqlColAttributeW;
+
+  static OdbcBindings? _instance;
+
+  static OdbcBindings get instance =>
+      _instance ??= OdbcBindings._(DynamicLibrary.open('odbc32.dll'));
+}
+
+/// 버퍼 및 메모리 정리를 돕는 헬퍼
+extension PointerUtf16Extensions on String {
+  Pointer<Utf16> toUtf16Ptr() {
+    final units = toNativeUtf16();
+    return units;
+  }
+}
+
+extension PointerUtf16Read on Pointer<Utf16> {
+  String toDartStringWithLength(int length) {
+    if (this == nullptr) return '';
+    return toDartString(length: length);
+  }
+}

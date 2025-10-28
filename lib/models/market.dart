@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Market {
@@ -24,21 +23,14 @@ class Market {
     instance = market;
   }
 
-  factory Market.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
-
-    if (parts.length < 2) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    final marketId = int.tryParse(parts[0].trim()) ?? 0;
-    final customerId = int.tryParse(parts[1].trim()) ?? 0;
-    final name = parts[2].trim();
+  factory Market.fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
+    int i(String key) => int.tryParse(s(key)) ?? 0;
 
     return Market(
-      marketId: marketId,
-      customerId: customerId,
-      name: name,
+      marketId:   i('MARKET_ID'),
+      customerId: i('CUSTOMER_ID'),
+      name:       s('NAME'),
     );
   }
 
@@ -52,13 +44,10 @@ class MarketDAO extends DAO {
 
   static const String SelectSql = '''
     SELECT
-			CONVERT(VARBINARY(300),
-        CONCAT_WS(N'${DAO.SPLITTER}',
-          COALESCE(CONVERT(NVARCHAR(20), RICH_MARKET_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(20), RICH_ETC COLLATE ${DAO.CP949}), N'')
-			)) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(20), RICH_MARKET_ID), N'') AS MARKET_ID,
+      COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N'') AS CUSTOMER_ID,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'') AS NAME,
+      COALESCE(CONVERT(NVARCHAR(20), RICH_ETC COLLATE ${DAO.CP949}), N'') AS ETC
     FROM BM_MARKET
   ''';
 
@@ -73,19 +62,13 @@ class MarketDAO extends DAO {
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlMarketId', { 'marketId': marketId },
-				timeout: const Duration(seconds: DAO.query_timeouts)
+				'$SelectSql $WhereSqlMarketId', { 'marketId': marketId }
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
-
-      if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
-        return null;
-      }
+      final map = DAO.getRowMapFromResult(res);
 
       debugPrint('$cn.$fn: $END');
-      return Market.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+      return Market.fromMap(map);
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');

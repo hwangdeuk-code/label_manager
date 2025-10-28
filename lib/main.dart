@@ -20,6 +20,84 @@ typedef DebugPrintCallback = void Function(String? message, {int? wrapWidth});
 DebugPrintCallback gDebugPrint = debugPrint;
 IOSink? gSink;
 
+Future<void> main(List<String> args) async {
+  // Widgets 초기화는 모든 플랫폼 공통으로 필요하다.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 앱 시작 시 라이프사이클 옵저버를 1회 등록
+  LifecycleManager.instance.ensureInitialized();
+
+  // 한국어 로케일용 날짜/시간 포맷터 초기화
+  await initializeDateFormatting('ko_KR');
+
+  // 데스크톱 환경에서는 지정한 디스플레이로 이동 후 최대화.
+  if (Platform.isWindows || Platform.isMacOS) {
+    //final requestedDisplay = resolveDisplayIndex(args);
+    await initDesktopWindow(targetIndex: 0); //requestedDisplay ?? 0);
+    
+    // 창 닫기(X) 시 우리 정리 로직을 먼저 수행할 수 있도록 보장
+    await windowManager.setPreventClose(true);
+    windowManager.addListener(_AppWindowListener());
+
+    isDesktop = true;
+  }
+
+  // 앱 정보를 조회해 전역에 보관한다.
+  final info = await PackageInfo.fromPlatform();
+  appPackageName = info.packageName;
+  appVersion = info.version;
+
+	// 로그 파일 및 debugPrint 초기화
+	await initApplogAndDebugPrint();
+
+  // 공통 StartUp 페이지를 표시한다.
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      builder: (context, child) => DbReconnectOverlay(child: child),
+      home: const HomePage(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
+    ),
+  );
+}
+
+// 로그 파일 처리 및 debugPrint 재정의
+Future<void> initApplogAndDebugPrint() async {
+  final dir = await getApplicationSupportDirectory();
+  await _deleteOldLogs(dir); // 오래된 로그 삭제 함수 호출
+
+  // 오늘 날짜로 로그 파일을 열거나 생성 (예: app_2023-10-27.log)
+  final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final logPath = p.join(dir.path, 'app_$today.log');
+  final logFile = File(logPath);
+  gSink = logFile.openWrite(mode: FileMode.append); // 덮어쓰지 않고 이어쓰기
+  gDebugPrint = debugPrint;
+  gDebugPrint('LogPath: $logPath');
+
+  // debugPrint를 파일로도 복사
+  debugPrint = (String? message, {int? wrapWidth}) {
+    final prefixed = '[LM] $message'; // 필터용 접두어
+		if (Platform.isWindows) dv(prefixed);
+    gDebugPrint(prefixed, wrapWidth: wrapWidth);
+    gSink!.writeln('${DateTime.now().toIso8601String()} $message');
+  };
+
+	// Flutter 프레임워크 에러
+  FlutterError.onError = (FlutterErrorDetails d) {
+    debugPrint('FlutterError: ${d.exceptionAsString()}');
+    if (d.stack != null) debugPrint(d.stack.toString());
+  };
+
+  // Zone 밖/Isolate 경계 에러
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Uncaught: $error');
+    debugPrint(stack.toString());
+    return true; // 처리됨
+  };
+}
+
 // 1개월 이전 로그 파일 삭제
 Future<void> _deleteOldLogs(Directory logDir) async {
   try {
@@ -57,79 +135,6 @@ Future<void> _deleteOldLogs(Directory logDir) async {
     // 디렉토리 접근 등에서 예외 발생 시 로그 기록
     gDebugPrint('Failed to delete old logs: $e');
   }
-}
-
-Future<void> main(List<String> args) async {
-  // Widgets 초기화는 모든 플랫폼 공통으로 필요하다.
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // 앱 시작 시 라이프사이클 옵저버를 1회 등록
-  LifecycleManager.instance.ensureInitialized();
-
-  // 한국어 로케일용 날짜/시간 포맷터 초기화
-  await initializeDateFormatting('ko_KR');
-
-  // 데스크톱 환경에서는 지정한 디스플레이로 이동 후 최대화.
-  if (Platform.isWindows || Platform.isMacOS) {
-    //final requestedDisplay = resolveDisplayIndex(args);
-    await initDesktopWindow(targetIndex: 0); //requestedDisplay ?? 0);
-    
-    // 창 닫기(X) 시 우리 정리 로직을 먼저 수행할 수 있도록 보장
-    await windowManager.setPreventClose(true);
-    windowManager.addListener(_AppWindowListener());
-
-    isDesktop = true;
-  }
-
-  // 앱 정보를 조회해 전역에 보관한다.
-  final info = await PackageInfo.fromPlatform();
-  appPackageName = info.packageName;
-  appVersion = info.version;
-
-  // 로그 파일 처리
-  final dir = await getApplicationSupportDirectory();
-  await _deleteOldLogs(dir); // 오래된 로그 삭제 함수 호출
-
-  // 오늘 날짜로 로그 파일을 열거나 생성 (예: app_2023-10-27.log)
-  final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-  final logPath = p.join(dir.path, 'app_$today.log');
-  final logFile = File(logPath);
-  gSink = logFile.openWrite(mode: FileMode.append); // 덮어쓰지 않고 이어쓰기
-  gDebugPrint = debugPrint;
-  gDebugPrint('LogPath: $logPath');
-
-  // debugPrint를 파일로도 복사
-  debugPrint = (String? message, {int? wrapWidth}) {
-    final prefixed = '[LM] $message'; // 필터용 접두어
-		if (Platform.isWindows) dv(prefixed);
-    gDebugPrint(prefixed, wrapWidth: wrapWidth);
-    gSink!.writeln('${DateTime.now().toIso8601String()} $message');
-  };
-
-	// Flutter 프레임워크 에러
-  FlutterError.onError = (FlutterErrorDetails d) {
-    debugPrint('FlutterError: ${d.exceptionAsString()}');
-    if (d.stack != null) debugPrint(d.stack.toString());
-  };
-
-  // Zone 밖/Isolate 경계 에러
-  PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('Uncaught: $error');
-    debugPrint(stack.toString());
-    return true; // 처리됨
-  };
-
-  // 공통 StartUp 페이지를 표시한다.
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      builder: (context, child) => DbReconnectOverlay(child: child),
-      home: const HomePage(),
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-    ),
-  );
 }
 
 class _AppWindowListener extends WindowListener {

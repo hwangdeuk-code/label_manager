@@ -22,7 +22,7 @@ class StartupDbHelper {
 
     try {
       final dbConnection = DbClient.instance;
-      if (dbConnection.isConnected) {
+  if (dbConnection.isConnected) {
         debugPrint('$cn.$fn: already connected');
         return true;
       }

@@ -44,35 +44,21 @@ class LoginLog {
     required this.loginCondition,
   });
 
-  factory LoginLog.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
-
-    if (parts.length < 2) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    final logId = int.tryParse(parts[0].trim()) ?? 0;
-    final userId = parts[1].trim();
-    final userGrade = UserGrade.fromCode(int.tryParse(parts[2].trim()) ?? 0);
-    final programVersion = parts[3].trim();
-    final customerId = int.tryParse(parts[4].trim()) ?? 0;
-    final customerName = parts[5].trim();
-    final loginDate = parts[6].trim();
-    final loginDateYYYYMMDD = parts[7].trim();
-    final lLoginIP = parts[8].trim();
-    final loginCondition = LoginCondition.fromCode(int.tryParse(parts[9].trim()) ?? 0);
+  factory LoginLog.fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
+    int i(String key) => int.tryParse(s(key)) ?? 0;
 
     return LoginLog(
-      logId: logId,
-      userId: userId,
-      userGrade: userGrade,
-      programVersion: programVersion,
-      customerId: customerId,
-      customerName: customerName,
-      loginDate: loginDate,
-      loginDateYYYYMMDD: loginDateYYYYMMDD,
-      lLoginIP: lLoginIP,
-      loginCondition: loginCondition,
+      logId:              i('LOG_ID'),
+      userId:             s('USER_ID'),
+      userGrade:          UserGrade.fromCode(i('USER_GRADE')),
+      programVersion:     s('PROGRAM_VERSION'),
+      customerId:         i('CUSTOMER_ID'),
+      customerName:       s('CUSTOMER_NAME'),
+      loginDate:          s('LOGIN_DATE'),
+      loginDateYYYYMMDD:  s('LOGIN_DATE_YYYYMMDD'),
+      lLoginIP:           s('LOGIN_IP'),
+      loginCondition:     LoginCondition.fromCode(i('LOGIN_CONDITION')),
     );
   }
 }
@@ -108,18 +94,12 @@ class LoginLogDAO extends DAO {
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlLogId', { 'logId': logId },
-				timeout: const Duration(seconds: DAO.query_timeouts)
+				'$SelectSql $WhereSqlLogId', { 'logId': logId }
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
+      final map = DAO.getRowMapFromResult(res);
 
-      if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
-        return null;
-      }
-
-      return LoginLog.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+      return LoginLog.fromMap(map);
     }
     catch (e) {
       throw Exception('[$cn.$fn] $e');
@@ -160,7 +140,7 @@ class LoginLogDAO extends DAO {
           'loginIP': hexLoginIP,
           'loginCondition': loginCondition.code,
         },
-        timeout: const Duration(seconds: DAO.query_timeouts)
+
       );
 
       debugPrint('$cn.$fn: $END');

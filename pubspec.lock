@@ -616,10 +616,9 @@ packages:
   mssql_connection:
     dependency: "direct main"
     description:
-      name: mssql_connection
-      sha256: "5a4e78df6255b15e18dbc95119cfe31b51706414068d5431fba91ece51271f0c"
-      url: "https://pub.dev"
-    source: hosted
+      path: "pub.dev/mssql_connection"
+      relative: true
+    source: path
     version: "3.0.0"
   package_info_plus:
     dependency: "direct main"

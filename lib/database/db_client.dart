@@ -1,186 +1,116 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:isolate';
 
-import 'package:flutter/material.dart';
-import 'package:label_manager/database/db_connection_service.dart';
-import 'package:mssql_connection/mssql_connection.dart' as mssql;
-//import 'package:sql_connection/sql_connection.dart' as sqlconn;
+import 'package:flutter/foundation.dart';
+import 'package:label_manager/utils/debugview_logger.dart';
 
-/// 앱 전역에서 DB 액세스를 단일 경로로 제공하는 클라이언트.
-/// - 폴링 일시중지/재개를 내부에서 처리하여 세션 충돌을 방지한다.
-/// - 연결 성공 직후 SET TEXTSIZE 2147483647;와 SET NOCOUNT ON;을 순차 실행하도록 통합한다.
-/// - 선택적 타임아웃 처리를 지원한다.
-abstract class _DbBackend {
-  bool get isConnected;
+import 'db_isolate.dart';
 
-  Future<bool> connect({
-    required String ip,
-    required String port,
-    required String databaseName,
-    required String username,
-    required String password,
-    int timeoutInSeconds = 15,
-  });
-
-  Future<String> getData(String sql);
-  Future<String> getDataWithParams(String sql, Map<String, dynamic> params);
-  Future<String> writeData(String sql);
-  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params);
-  Future<bool> disconnect();
-}
-
-class _MssqlBackend implements _DbBackend {
-  mssql.MssqlConnection get _db => mssql.MssqlConnection.getInstance();
-
-  @override
-  bool get isConnected => _db.isConnected;
-
-  @override
-  Future<bool> connect({
-    required String ip,
-    required String port,
-    required String databaseName,
-    required String username,
-    required String password,
-    int timeoutInSeconds = 15,
-  }) async {
-    final ok = await _db.connect(
-      ip: ip,
-      port: port,
-      databaseName: databaseName,
-      username: username,
-      password: password,
-      timeoutInSeconds: timeoutInSeconds,
-    );
-    if (!ok) return false;
-    await _db.writeData('SET NOCOUNT ON;');
-    return true;
-  }
-
-  @override
-  Future<String> getData(String sql) => _db.getData(sql);
-
-  @override
-  Future<String> getDataWithParams(String sql, Map<String, dynamic> params) =>
-      _db.getDataWithParams(sql, params);
-
-  @override
-  Future<String> writeData(String sql) => _db.writeData(sql);
-
-  @override
-  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params) =>
-      _db.writeDataWithParams(sql, params);
-
-  @override
-  Future<bool> disconnect() => _db.disconnect();
-}
-
-/*
-class _SqlConnBackend implements _DbBackend {
-  final sqlconn.SqlConnection _db = sqlconn.SqlConnection.getInstance();
-
-  @override
-  bool get isConnected => _db.isConnected;
-
-  @override
-  Future<bool> connect({
-    required String ip,
-    required String port,
-    required String databaseName,
-    required String username,
-    required String password,
-    int timeoutInSeconds = 15,
-  }) async {
-    final ok = await _db.connect(
-      ip: ip,
-      port: port,
-      databaseName: databaseName,
-      username: username,
-      password: password,
-      timeoutInSeconds: timeoutInSeconds,
-    );
-    if (!ok) return false;
-    await _db.updateData('SET TEXTSIZE 2147483647;');
-    await _db.updateData('SET NOCOUNT ON;');
-    return true;
-  }
-
-  @override
-  Future<String> getData(String sql) => _db.queryDatabase(sql);
-
-  @override
-  Future<String> getDataWithParams(String sql, Map<String, dynamic> params) {
-    // Android(sql_connection)에서는 sp_executesql 사용 시 일부 드라이버가 프로시저 호출로 처리하며 실패할 수 있다.
-    // 따라서 파라미터 토큰(@name)을 안전한 리터럴로 치환해 단일 SELECT 문으로 실행한다.
-    // 주의: 쿼리 문자열 내부의 따옴표 안에서의 @토큰 치환은 지원하지 않는다(현재 쿼리 패턴에선 필요 없음).
-    var inlined = sql;
-
-    params.forEach((key, value) {
-      final pattern = RegExp('@' + RegExp.escape(key) + r'\b');
-      inlined = inlined.replaceAll(pattern, _escapeValue(value));
-    });
-
-    return _db.queryDatabase(inlined);
-  }
-
-  @override
-  Future<String> writeData(String sql) => _db.updateData(sql);
-
-  @override
-  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params) {
-    var inlined = sql;
-
-    params.forEach((key, value) {
-      final pattern = RegExp('@' + RegExp.escape(key) + r'\b');
-      inlined = inlined.replaceAll(pattern, _escapeValue(value));
-    });
-
-    return _db.updateData(inlined);
-  }
-
-  @override
-  Future<bool> disconnect() => _db.disconnect();
-
-  static String _escapeValue(Object? v) {
-    if (v == null) return 'NULL';
-    if (v is num) return v.toString();
-    if (v is bool) return v ? '1' : '0';
-    final s = v.toString().replaceAll("'", "''");
-    return "N'$s'";
-  }
-}
-*/
-
+/// DB 작업을 처리하는 Isolate 기반 클라이언트
 class DbClient {
   DbClient._();
-  static const String cn = 'DbClient';
   static final DbClient instance = DbClient._();
-//  final _DbBackend _backend = (Platform.isAndroid) ? _SqlConnBackend() : _MssqlBackend();
-  final _DbBackend _backend = _MssqlBackend();
-  Future<void> _operationSerial = Future<void>.value();
 
-  bool get isConnected => _backend.isConnected;
+  Isolate? _dbIsolate;
+  SendPort? _dbSendPort;
+  ReceivePort? _logReceivePort;
+  StreamSubscription<dynamic>? _logSubscription;
+  Future<void>? _isolateInit;
 
-  Future<T> _runLocked<T>(Future<T> Function() action) {
-    final completer = Completer<T>();
-    _operationSerial = _operationSerial.then((_) async {
+  bool get isConnected => _dbIsolate != null && _dbSendPort != null;
+
+  void _log(String message) {
+    final timestamp = DateTime.now().toIso8601String();
+    final formatted = '[DbClient][$timestamp] $message';
+    debugPrint(formatted);
+    if (Platform.isWindows) {
       try {
-        final result = await action();
-        if (!completer.isCompleted) {
-          completer.complete(result);
-        }
-      } catch (error, stack) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stack);
-        }
-        rethrow;
+        dv(formatted);
+      } catch (_) {
+        // DebugView 출력 실패 시 무시
       }
-    }).catchError((error, stack) {
-      if (!completer.isCompleted) {
-        completer.completeError(error, stack);
+    }
+    try {
+      stdout.writeln(formatted);
+    } catch (_) {
+      // 콘솔 출력 실패 시 무시
+    }
+  }
+
+  Future<void> _ensureIsolate() async {
+    if (_dbSendPort != null) return;
+    if (_isolateInit != null) {
+      await _isolateInit;
+      return;
+    }
+
+    final initCompleter = Completer<void>();
+    _isolateInit = initCompleter.future;
+
+    _log('Isolate 준비 시작');
+    final sw = Stopwatch()..start();
+    final commandReceivePort = ReceivePort();
+    _logReceivePort = ReceivePort();
+    _logSubscription = _logReceivePort!.listen((message) {
+      final text = message is String ? message : message.toString();
+      if (Platform.isWindows) {
+        try {
+          dv(text);
+        } catch (_) {
+          // ignore DebugView failure
+        }
       }
-      return null;
+      _log('[Isolate] $text');
     });
-    return completer.future;
+
+    try {
+      _dbIsolate = await Isolate.spawn(
+        dbIsolateMain,
+        DbIsolateBootstrapMessage(
+          commandPort: commandReceivePort.sendPort,
+          logPort: _logReceivePort!.sendPort,
+        ),
+      );
+      _dbSendPort = await commandReceivePort.first as SendPort;
+      commandReceivePort.close();
+      sw.stop();
+      _log('Isolate 생성 완료 (${sw.elapsedMilliseconds}ms)');
+      initCompleter.complete();
+    } catch (e, st) {
+      commandReceivePort.close();
+      await _logSubscription?.cancel();
+      _logSubscription = null;
+      _logReceivePort?.close();
+      _logReceivePort = null;
+      _dbIsolate = null;
+      _dbSendPort = null;
+      _log('Isolate spawn failed: $e');
+      initCompleter.completeError(e, st);
+      rethrow;
+    } finally {
+      _isolateInit = null;
+    }
+  }
+
+  Future<T> _sendToIsolate<T>(
+    DbIsolateAction action,
+    Map<String, dynamic> payload,
+  ) async {
+    await _ensureIsolate();
+    final responsePort = ReceivePort();
+    _log('Isolate 요청: $action, payload=${_maskPayload(payload)}');
+    if (action == DbIsolateAction.connect) {
+      _log('Isolate 연결 문자열(mask): ${_maskConnectionString(payload)}');
+    }
+    _dbSendPort!.send(DbIsolateRequest(action, payload, responsePort.sendPort));
+    final DbIsolateResponse res = await responsePort.first as DbIsolateResponse;
+    responsePort.close();
+    _log('Isolate 응답: $action, success=${res.success}');
+    if (res.success) {
+      return res.result as T;
+    }
+    throw Exception(res.error ?? 'DB Isolate error');
   }
 
   Future<bool> connect({
@@ -190,73 +120,163 @@ class DbClient {
     required String username,
     required String password,
     int timeoutInSeconds = 15,
-  }) => _backend.connect(
-        ip: ip,
-        port: port,
-        databaseName: databaseName,
-        username: username,
-        password: password,
-        timeoutInSeconds: timeoutInSeconds,
-      );
+  }) async {
+    // Isolate가 준비될 때까지 기다려서 경합 조건을 방지한다.
+    await _ensureIsolate();
 
-  Future<String> getData(String sql, {Duration? timeout, String Function()? onTimeout}) {
-    return _runLocked(() {
-      return DbConnectionService.instance.runUserDbAction<String>(
-        (_) => _backend.getData(sql),
-        timeout: timeout,
-        onTimeout: onTimeout,
-      );
+    _log('DB 연결 시도: $ip:$port/$databaseName ($username)');
+    final sw = Stopwatch()..start();
+    final ok = await _sendToIsolate<bool>(DbIsolateAction.connect, {
+      'ip': ip,
+      'port': port,
+      'databaseName': databaseName,
+      'username': username,
+      'password': password,
+      'timeoutInSeconds': timeoutInSeconds,
     });
+    sw.stop();
+    _log('DB 연결 결과: $ok (${sw.elapsedMilliseconds}ms)');
+    return ok;
   }
 
-  Future<String> getDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) {
-    return _runLocked(() {
-      return DbConnectionService.instance.runUserDbAction<String>(
-        (_) => _backend.getDataWithParams(sql, params),
-        timeout: timeout,
-        onTimeout: onTimeout,
-      );
+  Future<String> getData(String sql) async {
+    _log('getData 요청 시작');
+    _debugPrintSql(sql);
+    final sw = Stopwatch()..start();
+    final result = await _sendToIsolate<String>(DbIsolateAction.query, {
+      'sql': sql,
     });
+    sw.stop();
+    _log('getData 요청 완료 (${sw.elapsedMilliseconds}ms)');
+    return result;
   }
 
-  Future<String> writeData(String sql, {Duration? timeout, String Function()? onTimeout}) {
-    return _runLocked(() {
-      return DbConnectionService.instance.runUserDbAction<String>(
-        (_) => _backend.writeData(sql),
-        timeout: timeout,
-        onTimeout: onTimeout,
-      );
-    });
+  Future<String> getDataWithParams(
+    String sql,
+    Map<String, dynamic> params,
+  ) async {
+    _log('getDataWithParams 요청 시작');
+    _debugPrintSql(sql, params);
+    final sw = Stopwatch()..start();
+    final result = await _sendToIsolate<String>(
+      DbIsolateAction.queryWithParams,
+      {'sql': sql, 'params': params},
+    );
+    sw.stop();
+    _log('getDataWithParams 요청 완료 (${sw.elapsedMilliseconds}ms)');
+    return result;
   }
 
-  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) {
-    return _runLocked(() {
-      return DbConnectionService.instance.runUserDbAction<String>(
-        (_) => _backend.writeDataWithParams(sql, params),
-        timeout: timeout,
-        onTimeout: onTimeout,
-      );
+  Future<String> writeData(String sql) async {
+    _log('writeData 요청 시작');
+    _debugPrintSql(sql);
+    final sw = Stopwatch()..start();
+    final result = await _sendToIsolate<String>(DbIsolateAction.write, {
+      'sql': sql,
     });
+    sw.stop();
+    _log('writeData 요청 완료 (${sw.elapsedMilliseconds}ms)');
+    return result;
   }
 
-  /// 간단 핑. 성공 시 true. 타임아웃/예외 시 false.
-  Future<bool> ping({Duration timeout = const Duration(seconds: 1)}) async {
+  Future<String> writeDataWithParams(
+    String sql,
+    Map<String, dynamic> params,
+  ) async {
+    _log('writeDataWithParams 요청 시작');
+    _debugPrintSql(sql, params);
+    final sw = Stopwatch()..start();
+    final result = await _sendToIsolate<String>(
+      DbIsolateAction.writeWithParams,
+      {'sql': sql, 'params': params},
+    );
+    sw.stop();
+    _log('writeDataWithParams 요청 완료 (${sw.elapsedMilliseconds}ms)');
+    return result;
+  }
+
+  Future<void> disconnect() async {
+    if (_dbSendPort == null) return;
+    _log('DB 연결 종료 요청');
+    final sw = Stopwatch()..start();
     try {
-      final s = await getData('SELECT 1 AS ok', timeout: timeout, onTimeout: () => '{"error":"timeout"}');
-      return s.isNotEmpty && !s.contains('error');
-    } catch (_) {
-      return false;
+      await _sendToIsolate(DbIsolateAction.disconnect, {});
+    } finally {
+      _dbIsolate?.kill(priority: Isolate.immediate);
+      _dbIsolate = null;
+      _dbSendPort = null;
+      await _logSubscription?.cancel();
+      _logSubscription = null;
+      _logReceivePort?.close();
+      _logReceivePort = null;
+      sw.stop();
+      _log('DB 연결 종료 완료 (${sw.elapsedMilliseconds}ms)');
     }
   }
 
-  /// 비정상일 때 재연결 유도.
-  void disconnect(String from) {
-    const String fn = 'disconnect';
-    debugPrint('$cn.$fn: from=$from');
-    if (_backend.isConnected) {
-      DbConnectionService.instance.detach();
-      _backend.disconnect();
-      debugPrint('$cn.$fn: Disconnected from database');
+  Map<String, dynamic> _maskPayload(Map<String, dynamic> payload) {
+    return payload.map((key, value) {
+      if (key.toLowerCase() == 'password') {
+        return MapEntry(key, '******');
+      }
+      return MapEntry(key, value);
+    });
+  }
+
+  String _maskConnectionString(Map<String, dynamic> payload) {
+    final ip = (payload['ip'] ?? '').toString().trim();
+    final port = (payload['port'] ?? '').toString().trim();
+    final db = (payload['databaseName'] ?? '').toString().trim();
+    final user = (payload['username'] ?? '').toString().trim();
+    final timeout = (payload['timeoutInSeconds'] ?? '').toString().trim();
+    return 'Server=$ip,$port;Database=$db;UID=$user;PWD=******;Login Timeout=$timeout;';
+  }
+
+  void _debugPrintSql(String sql, [Map<String, dynamic>? params]) {
+    try {
+      final statement =
+          params == null ? sql : _formatSqlWithParams(sql, params);
+      debugPrint('[DbClient][SQL] $statement');
+    } catch (e) {
+      debugPrint('[DbClient][SQL] format failed: $e');
+      debugPrint('[DbClient][SQL] raw: $sql');
     }
+  }
+
+  String _formatSqlWithParams(String sql, Map<String, dynamic> params) {
+    if (params.isEmpty) return sql;
+    var statement = sql;
+    final entries = params.entries
+        .map((e) => MapEntry(_normalizeParamName(e.key), e.value))
+        .toList()
+      ..sort((a, b) => b.key.length.compareTo(a.key.length));
+    for (final entry in entries) {
+      final literal = _toSqlLiteral(entry.value);
+      final pattern = RegExp(
+        '\\b${RegExp.escape(entry.key)}\\b',
+        caseSensitive: false,
+      );
+      statement = statement.replaceAll(pattern, literal);
+    }
+    return statement;
+  }
+
+  String _normalizeParamName(String name) =>
+      name.startsWith('@') ? name : '@$name';
+
+  String _toSqlLiteral(dynamic value) {
+    if (value == null) return 'NULL';
+    if (value is num) return value.toString();
+    if (value is bool) return value ? '1' : '0';
+    if (value is DateTime) {
+      final iso = value.toIso8601String();
+      return "'${iso.replaceAll("'", "''")}'";
+    }
+    if (value is Iterable) {
+      final list = value.map(_toSqlLiteral).join(', ');
+      return '($list)';
+    }
+    final text = value.toString().replaceAll("'", "''");
+    return "'$text'";
   }
 }

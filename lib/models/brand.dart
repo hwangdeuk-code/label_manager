@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Brand {
@@ -20,34 +19,32 @@ class Brand {
     required this.brandName,
   });
 
-  static void setBrands(List<Brand>? values) {
+  static void setDatas(List<Brand>? values) {
     datas = values;
   }
 
-  factory Brand.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
-
-    if (parts.length < 3) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    final brandId = int.tryParse(parts[0].trim()) ?? 0;
-    final customerId = int.tryParse(parts[1].trim()) ?? 0;
-    final brandName = parts[2].trim();
+  factory Brand.fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
+    int i(String key) => int.tryParse(s(key)) ?? 0;
 
     return Brand(
-      brandId: brandId,
-      customerId: customerId,
-      brandName: brandName,
+      brandId:    i('BRAND_ID'),
+      customerId: i('CUSTOMER_ID'),
+      brandName:  s('BRAND_NAME'),
     );
   }
 
-  static List<Brand> fromPipeLines(List<String> lines) =>
-      lines.map(Brand.fromPipe).toList();
+  static List<Brand> fromPipeLines(List<dynamic> rows) {
+    final List<Brand> brands = [];
+    for (var row in rows) {
+      brands.add(Brand.fromMap(row as Map<String, dynamic>));
+    }
+    return brands;
+  }
 
   @override
   String toString() =>
-      'BrandId: $brandId, CustomerId: $customerId, BrandName: $brandName';
+    'BrandId: $brandId, CustomerId: $customerId, BrandName: $brandName';
 }
 
 class BrandDAO extends DAO {
@@ -56,12 +53,9 @@ class BrandDAO extends DAO {
   static const String SelectSql =
       '''
     SELECT
-			CONVERT(VARBINARY(300),
-        CONCAT_WS(N'${DAO.SPLITTER}',
-          COALESCE(CONVERT(NVARCHAR(20), RICH_BRAND_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_NAME COLLATE ${DAO.CP949}), N'')
-			)) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(20), RICH_BRAND_ID), N'') AS BRAND_ID,
+      COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N'') AS CUSTOMER_ID,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_NAME COLLATE ${DAO.CP949}), N'') AS BRAND_NAME
     FROM BM_RICH_BRAND
   ''';
 
@@ -83,29 +77,14 @@ class BrandDAO extends DAO {
     try {
       final res = await DbClient.instance.getDataWithParams(
         '$SelectSql $WhereSqlCustomerId $OrderSqlByBrandrder',
-        {'customerId': customerId},
-        timeout: const Duration(seconds: DAO.query_timeouts),
+        { 'customerId': customerId }
       );
 
-      final base64Rows = extractJsonDBResults(DAO.LINE_U16LE, res);
-
-      if (base64Rows.isEmpty) {
-        debugPrint('$cn.$fn: ${DAO.query_no_data}');
-        return null;
-      }
-
-      final lines = base64Rows
-          .map(decodeUtf16LeFromBase64String)
-          .where((line) => line.isNotEmpty)
-          .toList();
-
-      if (lines.isEmpty) {
-        debugPrint('$cn.$fn: $END, decoded lines empty');
-        return null;
-      }
+      final rows = DAO.getRowsFromResult(res);
+      final brands = Brand.fromPipeLines(rows);
 
       debugPrint('$cn.$fn: $END');
-      return Brand.fromPipeLines(lines);
+      return brands;
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');

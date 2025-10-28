@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 import 'dao.dart';
 import 'date_manager.dart';
 
@@ -69,6 +68,7 @@ class LabelSizeSetup {
 }
 
 class LabelSize {
+  static const String cn = 'LabelSize';
   static List<LabelSize>? datas;
 
   final int labelSizeId;
@@ -85,43 +85,39 @@ class LabelSize {
     this.labelSizeSetup,
   });
 
-  static void setLabelSizes(List<LabelSize>? values) {
+  static void setDatas(List<LabelSize>? values) {
     datas = values;
   }
 
-  factory LabelSize.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
+  factory LabelSize.fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
+    int i(String key) => int.tryParse(s(key)) ?? 0;
 
-    if (parts.length < 3) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    int col = 0;
-    final labelSizeId = int.tryParse(parts[col++].trim()) ?? 0;
-    final brandId = int.tryParse(parts[col++].trim()) ?? 0;
-    final labelSizeName = parts[col++].trim();
+    final labelSizeId = i('LABELSIZE_ID');
+    final brandId = i('BRAND_ID');
+    final labelSizeName = s('LABELSIZE_NAME');
 
     final labelSizeCommon = LabelSizeCommon(
-      width: int.tryParse(parts[col++].trim()) ?? 0,
-      height: int.tryParse(parts[col++].trim()) ?? 0,
-      rtf: parts[col++].trim(),
+      width: i('FORM_WIDTH'),
+      height: i('FORM_HEIGHT'),
+      rtf: s('FORM_DATA'),
     );  
 
     final labelSizeSetup = LabelSizeSetup(
-      readOnly: (int.tryParse(parts[col++].trim()) ?? 0) != 0,
-      useMakeDate: (int.tryParse(parts[col++].trim()) ?? 0) != 0,
-      useMakeTime: (int.tryParse(parts[col++].trim()) ?? 0) != 0,
-      useValidDate: (int.tryParse(parts[col++].trim()) ?? 0) != 0,
-      useValidTime: (int.tryParse(parts[col++].trim()) ?? 0) != 0,
-      makingDateFormat: PrintDateFormat.values[int.tryParse(parts[col++].trim()) ?? 0],
-      makingTimeFormat: PrintTimeFormat.values[int.tryParse(parts[col++].trim()) ?? 0],
-      validDateFormat: PrintDateFormat.values[int.tryParse(parts[col++].trim()) ?? 0],
-      validTimeFormat: PrintTimeFormat.values[int.tryParse(parts[col++].trim()) ?? 0],
-      strMakeDate: parts[col++].trim(),
-      strMakeTime: parts[col++].trim(),
-      strValidDate: parts[col++].trim(),
-      strValidTime: parts[col++].trim(),
-      useScale: (int.tryParse(parts[col++].trim()) ?? 0) != 0,
+      readOnly: i('SETUP_READONLY') != 0,
+      useMakeDate: i('SETUP_USE_MAKEDATE') != 0,
+      useMakeTime: i('SETUP_USE_MAKETIME') != 0,
+      useValidDate: i('SETUP_USE_VALIDDATE') != 0,
+      useValidTime: i('SETUP_USE_VALIDTIME') != 0,
+      makingDateFormat: PrintDateFormat.values[i('SETUP_MAKEDATE_TYPE')],
+      makingTimeFormat: PrintTimeFormat.values[i('SETUP_MAKETIME_TYPE')],
+      validDateFormat: PrintDateFormat.values[i('SETUP_VALIDDATE_TYPE')],
+      validTimeFormat: PrintTimeFormat.values[i('SETUP_VALIDTIME_TYPE')],
+      strMakeDate: s('USER_MAKEDATE'),
+      strMakeTime: s('USER_MAKETIME'),
+      strValidDate: s('USER_VALIDDATE'),
+      strValidTime: s('USER_VALIDTIME'),
+      useScale: i('SETUP_USE_SCALE') != 0,
     );
 
     return LabelSize(
@@ -133,8 +129,13 @@ class LabelSize {
     );
   }
 
-  static List<LabelSize> fromPipeLines(List<String> lines) =>
-      lines.map(LabelSize.fromPipe).toList();
+  static List<LabelSize> fromPipeLines(List<dynamic> rows) {
+    final List<LabelSize> labelSize = [];
+    for (var row in rows) {
+      labelSize.add(LabelSize.fromMap(row as Map<String, dynamic>));
+    }
+    return labelSize;
+  }
 
   @override
   String toString() =>
@@ -146,29 +147,26 @@ class LabelSizeDAO extends DAO {
 
   static const String SelectSql = '''
     SELECT
-      CONVERT(VARBINARY(MAX),
-        CONCAT_WS(N'${DAO.SPLITTER}',
-          COALESCE(CONVERT(NVARCHAR(50), RICH_LABELSIZE_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_LABELSIZE_NAME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_WIDTH), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_HEIGHT), N''),
-          COALESCE(CONVERT(NVARCHAR(MAX), RICH_FORM_DATA COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_READONLY), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKEDATE), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKETIME), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDDATE), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDTIME), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKEDATE_TYPE), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKETIME_TYPE), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDDATE_TYPE), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDTIME_TYPE), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKEDATE COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKETIME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_VALIDDATE COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_VALIDTIME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_SCALE), N'')
-      )) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(50), RICH_LABELSIZE_ID), N'') AS LABELSIZE_ID,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_ID), N'') AS BRAND_ID,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_LABELSIZE_NAME COLLATE ${DAO.CP949}), N'') AS LABELSIZE_NAME,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_WIDTH), N'') AS FORM_WIDTH,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_HEIGHT), N'') AS FORM_HEIGHT,
+      COALESCE(CONVERT(NVARCHAR(MAX), RICH_FORM_DATA COLLATE ${DAO.CP949}), N'') AS FORM_DATA,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_READONLY), N'') AS SETUP_READONLY,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKEDATE), N'') AS SETUP_USE_MAKEDATE,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKETIME), N'') AS SETUP_USE_MAKETIME,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDDATE), N'') AS SETUP_USE_VALIDDATE,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDTIME), N'') AS SETUP_USE_VALIDTIME,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKEDATE_TYPE), N'') AS SETUP_MAKEDATE_TYPE,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKETIME_TYPE), N'') AS SETUP_MAKETIME_TYPE,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDDATE_TYPE), N'') AS SETUP_VALIDDATE_TYPE,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDTIME_TYPE), N'') AS SETUP_VALIDTIME_TYPE,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKEDATE COLLATE ${DAO.CP949}), N'') AS USER_MAKEDATE,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKETIME COLLATE ${DAO.CP949}), N'') AS USER_MAKETIME,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_USER_VALIDDATE COLLATE ${DAO.CP949}), N'') AS USER_VALIDDATE,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_USER_VALIDTIME COLLATE ${DAO.CP949}), N'') AS USER_VALIDTIME,
+      COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_SCALE), N'') AS SETUP_USE_SCALE
     FROM BM_RICH_LABELSIZE_FORM
   ''';
 
@@ -188,28 +186,14 @@ class LabelSizeDAO extends DAO {
     try {
       final res = await DbClient.instance.getDataWithParams(
         '$SelectSql $WhereSqlBrandId $OrderSqlByLabelSize',
-        {'brandId': brandId},
-        timeout: const Duration(seconds: DAO.query_timeouts),
+        { 'brandId': brandId }
       );
 
-      final base64Rows = extractJsonDBResults(DAO.LINE_U16LE, res);
+      final rows = DAO.getRowsFromResult(res);
+      final labelSizes = LabelSize.fromPipeLines(rows);
 
-      if (base64Rows.isEmpty) {
-        debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
-        return null;
-      }
-
-      final lines = base64Rows
-        .map(decodeUtf16LeFromBase64String)
-        .where((line) => line.isNotEmpty)
-        .toList();
-
-      if (lines.isEmpty) {
-        debugPrint('$cn.$fn: $END, decoded lines empty');
-        return null;
-      }
-
-      return LabelSize.fromPipeLines(lines);
+      debugPrint('$cn.$fn: $END');
+      return labelSizes;
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');

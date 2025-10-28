@@ -39,20 +39,16 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
 
-		LifecycleManager.instance.addObserver(LifecycleCallbacks(
-			onResumed: () {
-				const String fn = 'onResumed';
-				debugPrint('$cn.$fn: $START');
-
-				if (!DbClient.instance.isConnected) {
-					_loginToServerDB();
-				}
-
-				debugPrint('$cn.$fn: $END');
-			},
-			onDetached: () { _onLogout(true); },
-			onExitRequested: () { _onLogout(true); },
-		));
+  // ...existing code...
+    LifecycleManager.instance.addObserver(LifecycleCallbacks(
+      onResumed: () {
+        if (!DbClient.instance.isConnected) {
+          _loginToServerDB();
+        }
+      },
+      onDetached: () { _onLogout(true); },
+      onExitRequested: () { _onLogout(true); },
+    ));
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) await _loginToServerDB();
@@ -61,19 +57,12 @@ class _HomePageState extends State<HomePage> {
 
   // 로그아웃 유입이면 자동 표시하지 않음, 사용자 요청 시(앱바 로그인 아이콘) 열도록 함
   Future<void> _loginToServerDB() async {
-    const String fn = '_loginToServerDB';
-    debugPrint('$cn.$fn: $START');
-
     if (!(await _db.connectToServerDB(context))) {
-      debugPrint('$cn.$fn: Failed to connect to server DB');
       return;
     }
-
     if (!widget.fromLogout) {
       _showStartupDialog();
     }
-    
-    debugPrint('$cn.$fn: $END');
   }
 
   // 재연결 모달은 전역 오버레이(GlobalReconnectOverlay)가 담당하므로 여기서는 처리하지 않음
@@ -87,7 +76,9 @@ class _HomePageState extends State<HomePage> {
 
   void _onLogin() {
     if (!mounted) return;
-    setState(() { _loggedIn = true; });
+    if (!_loggedIn) {
+      setState(() { _loggedIn = true; });
+    }
   }
 
   Future<void> _onLogout(bool isDisconnect) async {
@@ -101,12 +92,12 @@ class _HomePageState extends State<HomePage> {
 
 		if (isDisconnect == true) {
 			_db.dispose();
-    	DbClient.instance.disconnect('$cn.$fn');
+    	DbClient.instance.disconnect();
 		}
 
-    if (mounted) {
-    	setState(() { _loggedIn = false; });
-		}
+    if (mounted && _loggedIn) {
+      setState(() { _loggedIn = false; });
+    }
 
 		debugPrint('$cn.$fn: $END');
   }
@@ -163,9 +154,17 @@ class _HomePageState extends State<HomePage> {
         body: _loggedIn
             ? HomePageManager(
                 selectedBrand: _selectedBrand,
-                onBrandChanged: (v) => setState(() => _selectedBrand = v ?? _selectedBrand),
+                onBrandChanged: (v) {
+                  if (v != null && v != _selectedBrand) {
+                    setState(() => _selectedBrand = v);
+                  }
+                },
                 selectedLabelSize: _selectedLabelSize,
-                onLabelSizeChanged: (v) => setState(() => _selectedLabelSize = v ?? _selectedLabelSize),
+                onLabelSizeChanged: (v) {
+                  if (v != null && v != _selectedLabelSize) {
+                    setState(() => _selectedLabelSize = v);
+                  }
+                },
             )
             : _buildLoggedOutBackground(),
       ),

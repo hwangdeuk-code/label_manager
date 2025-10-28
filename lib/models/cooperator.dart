@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_manager/core/app.dart';
 import 'package:label_manager/database/db_client.dart';
-import 'package:label_manager/database/db_result_utils.dart';
 import 'dao.dart';
 
 enum CooperatorGrade {
@@ -40,19 +39,12 @@ class Cooperator {
     instance = cooperator;
   }
 
-  factory Cooperator.fromPipe(String line) {
-    final parts = line.split(DAO.SPLITTER);
-
-    if (parts.length < 2) {
-      throw FormatException('${DAO.incorrect_format}: $line');
-    }
-
-    final id = parts[0].trim();
-    final name = parts[1].trim();
+  factory Cooperator.fromMap(Map<String, dynamic> map) {
+    String s(String key) => (map[key] ?? '').toString();
 
     return Cooperator(
-      id: id,
-      name: name,
+      id:   s('COOP_ID'),
+      name: s('NAME'),
     );
   }
 
@@ -65,11 +57,8 @@ class CooperatorDAO extends DAO {
 
   static const String SelectSql = '''
     SELECT
-			CONVERT(VARBINARY(100),
-        CONCAT_WS(N'${DAO.SPLITTER}',
-          COALESCE(CONVERT(NVARCHAR(30), RICH_COOP_ID COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'')
-			)) AS ${DAO.LINE_U16LE}
+      COALESCE(CONVERT(NVARCHAR(30), RICH_COOP_ID COLLATE ${DAO.CP949}), N'') AS COOP_ID,
+      COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'') AS NAME
     FROM BM_COOPERATOR
   ''';
 
@@ -84,19 +73,13 @@ class CooperatorDAO extends DAO {
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlCooperatorId', { 'cooperatorId': cooperatorId },
-				timeout: const Duration(seconds: DAO.query_timeouts)
+				'$SelectSql $WhereSqlCooperatorId', { 'cooperatorId': cooperatorId }
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
-
-      if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
-        return null;
-      }
+      final map = DAO.getRowMapFromResult(res);
 
       debugPrint('$cn.$fn: $END');
-      return Cooperator.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+      return Cooperator.fromMap(map);
     }
     catch (e) {
       debugPrint('$cn.$fn: $END, $e');
