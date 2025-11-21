@@ -104,7 +104,7 @@ class UserDAO extends DAO {
   ''';
 
   static Future<User?> getByUserId(String userId) async {
-    const String fn = 'getByUserId';
+    const fn = 'getByUserId';
     debugPrint('$cn.$fn: $START, userId:$userId');
 
     try {

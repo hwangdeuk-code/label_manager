@@ -39,7 +39,6 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
 
-  // ...existing code...
     LifecycleManager.instance.addObserver(LifecycleCallbacks(
       onResumed: () {
         if (!DbClient.instance.isConnected) {
@@ -82,7 +81,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _onLogout(bool isDisconnect) async {
-		const String fn = '_onLogout';
+		const fn = '_onLogout';
     debugPrint('$cn.$fn: $START');
 
     User.instance = null;
@@ -102,9 +101,15 @@ class _HomePageState extends State<HomePage> {
 		debugPrint('$cn.$fn: $END');
   }
 
+  Future<void> _onLabelSizeChanged(String labelSize) async {
+		const fn = '_onLabelSizeChanged';
+    debugPrint('$cn.$fn: $START, labelSize: $labelSize');
+		debugPrint('$cn.$fn: $END');
+  }
+
   @override
   void dispose() {
-		const String fn = 'dispose';
+		const fn = 'dispose';
 		debugPrint('$cn.$fn: $START');
     _searchCtrl.dispose();
     super.dispose();
@@ -163,6 +168,7 @@ class _HomePageState extends State<HomePage> {
                 onLabelSizeChanged: (v) {
                   if (v != null && v != _selectedLabelSize) {
                     setState(() => _selectedLabelSize = v);
+                    _onLabelSizeChanged(v);
                   }
                 },
             )

@@ -57,7 +57,7 @@ class MarketDAO extends DAO {
   ''';
 
   static Future<Market?> getByMarketId(int marketId) async {
-    const String fn = 'getByMarketId';
+    const fn = 'getByMarketId';
     debugPrint('$cn.$fn: $START, marketId:$marketId');
 
     try {

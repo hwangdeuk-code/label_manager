@@ -90,7 +90,7 @@ class LoginLogDAO extends DAO {
   ''';
 
   static Future<LoginLog?> getByLogId(int logId) async {
-    const String fn = 'getByLogId';
+    const fn = 'getByLogId';
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
@@ -113,7 +113,7 @@ class LoginLogDAO extends DAO {
     required String customerName,
     required LoginCondition loginCondition,
   }) async {
-    const String fn = 'InsertLoginLog';
+    const fn = 'InsertLoginLog';
     debugPrint('$cn.$fn: $START');
 
     try {

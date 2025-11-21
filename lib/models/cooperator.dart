@@ -68,7 +68,7 @@ class CooperatorDAO extends DAO {
   ''';
 
   static Future<Cooperator?> getByCooperatorId(String cooperatorId) async {
-    const String fn = 'getByCooperatorId';
+    const fn = 'getByCooperatorId';
     debugPrint('$cn.$fn: $START, cooperatorId:$cooperatorId');
 
     try {

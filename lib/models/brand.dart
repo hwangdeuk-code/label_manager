@@ -71,7 +71,7 @@ class BrandDAO extends DAO {
   static Future<List<Brand>?> getByCustomerIdByBrandOrder(
     int customerId,
   ) async {
-    const String fn = 'getByCustomerIdByBrandOrder';
+    const fn = 'getByCustomerIdByBrandOrder';
     debugPrint('$cn.$fn: $START, customerId:$customerId');
 
     try {

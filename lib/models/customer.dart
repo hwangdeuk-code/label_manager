@@ -56,7 +56,7 @@ class CustomerDAO extends DAO {
   ''';
 
   static Future<Customer?> getByCustomerId(int customerId) async {
-    const String fn = 'getByCustomerId';
+    const fn = 'getByCustomerId';
     debugPrint('$cn.$fn: $START, customerId:$customerId');
 
     try {

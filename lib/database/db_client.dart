@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:label_manager/utils/debugview_logger.dart';
+import 'package:label_manager/utils/debug_logger.dart';
 
 import 'db_isolate.dart';
 
@@ -26,7 +26,7 @@ class DbClient {
     debugPrint(formatted);
     if (Platform.isWindows) {
       try {
-        dv(formatted);
+        DebugLogger.outputDebugString(formatted);
       } catch (_) {
         // DebugView 출력 실패 시 무시
       }
@@ -56,7 +56,7 @@ class DbClient {
       final text = message is String ? message : message.toString();
       if (Platform.isWindows) {
         try {
-          dv(text);
+          DebugLogger.outputDebugString(text);
         } catch (_) {
           // ignore DebugView failure
         }
@@ -236,10 +236,10 @@ class DbClient {
     try {
       final statement =
           params == null ? sql : _formatSqlWithParams(sql, params);
-      debugPrint('[DbClient][SQL] $statement');
+      debugPrint('[LM] [DbClient][SQL] $statement');
     } catch (e) {
-      debugPrint('[DbClient][SQL] format failed: $e');
-      debugPrint('[DbClient][SQL] raw: $sql');
+      debugPrint('[LM] [DbClient][SQL] format failed: $e');
+      debugPrint('[LM] [DbClient][SQL] raw: $sql');
     }
   }
 

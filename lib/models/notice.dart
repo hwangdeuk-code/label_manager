@@ -19,7 +19,7 @@ class NoticeDAO extends DAO {
   ''';
  
   static Future<String> getByUserId(String userId) async {
-    const String fn = 'getByUserId';
+    const fn = 'getByUserId';
     debugPrint('$cn.$fn: $START, userId:$userId');
 
     try {

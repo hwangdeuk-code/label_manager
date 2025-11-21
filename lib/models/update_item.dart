@@ -109,7 +109,7 @@ class UpdateItemDAO extends DAO {
   static Future<List<UpdateItem>?> getByCustomerIdByUpdateItemOrder(
     int customerId,
   ) async {
-    const String fn = 'getByCustomerIdByUpdateItemOrder';
+    const fn = 'getByCustomerIdByUpdateItemOrder';
     debugPrint('$cn.$fn: $START, customerId:$customerId');
 
     try {

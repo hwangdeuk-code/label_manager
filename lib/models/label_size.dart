@@ -180,7 +180,7 @@ class LabelSizeDAO extends DAO {
   ''';
 
   static Future<List<LabelSize>?> getByBrandIdByLabelSizeOrder(int brandId) async {
-    const String fn = 'getByBrandIdByLabelSizeOrder';
+    const fn = 'getByBrandIdByLabelSizeOrder';
     debugPrint('$cn.$fn: $START, brandId:$brandId');
 
     try {

@@ -386,7 +386,7 @@ class _LoginPanelState extends State<_LoginPanel> {
   }
 
   Future<void> _onUserIdFieldCommit(String userIdText) async {
-    const String fn = '_onUserIdFieldCommit';
+    const fn = '_onUserIdFieldCommit';
 
     if (_LoginPanel._noticeFetchInFlight) return;
     _LoginPanel._noticeFetchInFlight = true;
@@ -474,7 +474,7 @@ class _LoginPanelState extends State<_LoginPanel> {
   }
 
   Future<void> _onLoginButtonPressed(String inputPwd) async {
-    const String fn = '_onLoginButtonPressed';
+    const fn = '_onLoginButtonPressed';
     debugPrint('${_LoginPanel.cn}.$fn, $START');
 
     if (_userInfo == null) {

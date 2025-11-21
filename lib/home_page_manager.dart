@@ -12,6 +12,8 @@ import 'package:label_manager/models/label_size.dart';
 import 'package:label_manager/models/user.dart';
 import 'package:label_manager/utils/on_messages.dart';
 
+const cName = 'HomePageManager';
+
 /// 로그인 이후 표시되는 본문 UI를 별도 파일로 분리한 위젯
 class HomePageManager extends StatefulWidget {
   final String selectedBrand;
@@ -32,13 +34,6 @@ class HomePageManager extends StatefulWidget {
 }
 
 class _HomePageManagerState extends State<HomePageManager> {
-  void _trace(String msg) {
-    if (!traceLogEnabled) return;
-    final now = DateTime.now().toIso8601String();
-    // ignore: avoid_print
-    print('[TRACE][HomePageManager][$now] $msg');
-  }
-	
   final HomePageManagerLogic _logic = HomePageManagerLogic();
   late final TabbedViewController _tabController;
   final TextEditingController _tabSearchController = TextEditingController();
@@ -81,67 +76,75 @@ class _HomePageManagerState extends State<HomePageManager> {
   }
 
   void _scheduleLabelSizeLoad(String? brandName) {
-    final target = _findBrandByName(brandName);
-    if (target == null) {
-      _labelSizesBrandId = null;
-      LabelSize.setDatas(<LabelSize>[]);
-      setState(() {});
-      widget.onLabelSizeChanged(null);
-      return;
-    }
-
-    if (_labelSizesBrandId == target.brandId && LabelSize.datas != null) {
-      final current = LabelSize.datas ?? const <LabelSize>[];
-      if (current.isEmpty) {
-        widget.onLabelSizeChanged(null);
-      } else {
-        final resolved = _logic.resolveSelectedLabelSize(
-          current,
-          widget.selectedLabelSize,
-        );
-        final fallback = _logic.firstLabelSizeName(current);
-        if (resolved == null && fallback != null) {
-          widget.onLabelSizeChanged(fallback);
-        }
-      }
-      return;
-    }
-
-    final token = ++_labelLoadToken;
-    _labelSizesBrandId = null;
-    LabelSize.setDatas(<LabelSize>[]);
-    setState(() {});
-
-    _logic.fetchLabelSizes(target.brandId).then((labelSizes) {
-      if (!mounted || token != _labelLoadToken) return;
-      LabelSize.setDatas(labelSizes);
-      _labelSizesBrandId = target.brandId;
-      setState(() {});
-
-      if (labelSizes.isEmpty) {
+    const fName = '_scheduleLabelSizeLoad';
+    try {
+      debugPrint('$cName.$fName: $START');
+      final target = _findBrandByName(brandName);
+      if (target == null) {
+        _labelSizesBrandId = null;
+        LabelSize.setDatas(<LabelSize>[]);
+        setState(() {});
         widget.onLabelSizeChanged(null);
         return;
       }
 
-      final resolved = _logic.resolveSelectedLabelSize(
-        labelSizes,
-        widget.selectedLabelSize,
-      );
-      final fallback = _logic.firstLabelSizeName(labelSizes);
-      if (resolved == null && fallback != null) {
-        widget.onLabelSizeChanged(fallback);
+      if (_labelSizesBrandId == target.brandId && LabelSize.datas != null) {
+        final current = LabelSize.datas ?? const <LabelSize>[];
+        if (current.isEmpty) {
+          widget.onLabelSizeChanged(null);
+        } else {
+          final resolved = _logic.resolveSelectedLabelSize(
+            current,
+            widget.selectedLabelSize,
+          );
+          final fallback = _logic.firstLabelSizeName(current);
+          if (resolved == null && fallback != null) {
+            widget.onLabelSizeChanged(fallback);
+          }
+        }
+        return;
       }
-    }).catchError((_) {
-      if (!mounted || token != _labelLoadToken) return;
+
+      final token = ++_labelLoadToken;
       _labelSizesBrandId = null;
+      LabelSize.setDatas(<LabelSize>[]);
       setState(() {});
-    });
+
+      _logic.fetchLabelSizes(target.brandId).then((labelSizes) {
+        if (!mounted || token != _labelLoadToken) return;
+        LabelSize.setDatas(labelSizes);
+        _labelSizesBrandId = target.brandId;
+        setState(() {});
+
+        if (labelSizes.isEmpty) {
+          widget.onLabelSizeChanged(null);
+          return;
+        }
+
+        final resolved = _logic.resolveSelectedLabelSize(
+          labelSizes,
+          widget.selectedLabelSize,
+        );
+        final fallback = _logic.firstLabelSizeName(labelSizes);
+        if (resolved == null && fallback != null) {
+          widget.onLabelSizeChanged(fallback);
+        }
+      }).catchError((_) {
+        if (!mounted || token != _labelLoadToken) return;
+        _labelSizesBrandId = null;
+        setState(() {});
+      });
+    }
+    finally {
+      debugPrint('$cName.$fName: $END');
+    }
   }
 
   Future<void> _loadBrands() async {
-
     void afterSnackBarVisible() async {
+      const fName = '_loadBrands';
       try {
+        debugPrint('$cName.$fName: $START');
         final brands = await _logic.fetchBrands(Customer.instance!.customerId);
         if (!mounted) return;
 
@@ -168,16 +171,16 @@ class _HomePageManagerState extends State<HomePageManager> {
 
         final targetName = resolved ?? fallback ?? widget.selectedBrand;
         _scheduleLabelSizeLoad(targetName);
-      } finally {
+      }
+      finally {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        debugPrint('$cName.$fName: $END');
       }
     }
 
     showSnackBar(
-      context,
-      '사용자 데이터를 불러오고 있습니다...',
-      type: SnackBarType.inProgress,
-      onVisible: afterSnackBarVisible,
+      context, '사용자 데이터를 불러오고 있습니다...',
+      type: SnackBarType.inProgress, onVisible: afterSnackBarVisible,
     );
   }
 
@@ -421,7 +424,6 @@ class _HomePageManagerState extends State<HomePageManager> {
       ],
     );
     sw.stop();
-    _trace('build: END (${sw.elapsedMilliseconds}ms)');
     return result;
   }
 }

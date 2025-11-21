@@ -51,7 +51,7 @@ Future<void> dbIsolateMain(DbIsolateBootstrapMessage bootstrap) async {
       // ignore
     }
     try {
-      stdout.writeln('[DbIsolate] $message');
+      stdout.writeln('[LM] [DbIsolate] $message');
     } catch (_) {
       // ignore stdout failures
     }

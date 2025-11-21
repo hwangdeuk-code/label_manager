@@ -15,7 +15,7 @@ class StartupDbHelper {
   /// 서버 DB에 연결 시도. 성공 시 true를 반환한다.
   /// - 진행/에러 안내는 전역 BlockingOverlay로 처리한다.
   Future<bool> connectToServerDB(BuildContext context) async {
-    const String fn = 'connectToServerDB';
+    const fn = 'connectToServerDB';
     debugPrint('$cn.$fn: $START');
 
     bool errorOverlayShown = false;
