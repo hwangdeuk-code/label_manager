@@ -17,6 +17,8 @@ import 'home_page_manager.dart';
 import 'page_login/startup_dialog.dart';
 import 'page_login/startup_db_helper.dart';
 
+const cn = 'HomePage';
+
 // 사용자 로그인 및 앱 시작: 기본 프린터 설정 + 사용자 정보 입력
 class HomePage extends StatefulWidget {
   final bool fromLogout; // 사용자 로그아웃으로 진입했는지 여부
@@ -27,7 +29,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const String cn = '_HomePageState';
   final StartupDbHelper _db = StartupDbHelper();
   bool _loggedIn = false;
   // 컨트롤 영역 상태(샘플 값): 실제 데이터 연동 전까지 플레이스홀더로 사용
@@ -101,12 +102,6 @@ class _HomePageState extends State<HomePage> {
 		debugPrint('$cn.$fn: $END');
   }
 
-  Future<void> _onLabelSizeChanged(String labelSize) async {
-		const fn = '_onLabelSizeChanged';
-    debugPrint('$cn.$fn: $START, labelSize: $labelSize');
-		debugPrint('$cn.$fn: $END');
-  }
-
   @override
   void dispose() {
 		const fn = 'dispose';
@@ -145,8 +140,7 @@ class _HomePageState extends State<HomePage> {
                 icon: const Icon(Icons.login),
                 tooltip: '로그인',
                 onPressed: () => DbClient.instance.isConnected
-                    ? _showStartupDialog()
-                    : _loginToServerDB(),
+                  ? _showStartupDialog() : _loginToServerDB(),
               ),
             // IconButton(
             //   icon: const Icon(Icons.exit_to_app),
@@ -157,22 +151,19 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         body: _loggedIn
-            ? HomePageManager(
-                selectedBrand: _selectedBrand,
-                onBrandChanged: (v) {
-                  if (v != null && v != _selectedBrand) {
-                    setState(() => _selectedBrand = v);
-                  }
-                },
-                selectedLabelSize: _selectedLabelSize,
-                onLabelSizeChanged: (v) {
-                  if (v != null && v != _selectedLabelSize) {
-                    setState(() => _selectedLabelSize = v);
-                    _onLabelSizeChanged(v);
-                  }
-                },
-            )
-            : _buildLoggedOutBackground(),
+          ? HomePageManager(
+            selectedBrand: _selectedBrand,
+            onBrandChanged: (v) {
+              if (v == null) return;
+              if (v != _selectedBrand) { setState(() => _selectedBrand = v); }
+            },
+            selectedLabelSize: _selectedLabelSize,
+            onLabelSizeChanged: (v) {
+              if (v == null) return;
+              if (v != _selectedLabelSize) { setState(() => _selectedLabelSize = v); }
+            },
+          )
+          : _buildLoggedOutBackground(),
       ),
     );
   }

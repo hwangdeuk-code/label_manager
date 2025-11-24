@@ -1,7 +1,8 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
+import 'package:label_manager/models/market.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
 import 'package:label_manager/core/app.dart';
@@ -12,7 +13,7 @@ import 'package:label_manager/models/label_size.dart';
 import 'package:label_manager/models/user.dart';
 import 'package:label_manager/utils/on_messages.dart';
 
-const cName = 'HomePageManager';
+const cn = 'HomePageManager';
 
 /// 로그인 이후 표시되는 본문 UI를 별도 파일로 분리한 위젯
 class HomePageManager extends StatefulWidget {
@@ -75,23 +76,47 @@ class _HomePageManagerState extends State<HomePageManager> {
     _scheduleLabelSizeLoad(brandName);
   }
 
-  void _scheduleLabelSizeLoad(String? brandName) {
-    const fName = '_scheduleLabelSizeLoad';
+  void _handleLabelSizeChanged(String? labelSize) {
+    const fn = '_handleLabelSizeChanged';
     try {
-      debugPrint('$cName.$fName: $START');
+      debugPrint('$cn.$fn: $START');
+
+      if (labelSize == null) {
+        widget.onLabelSizeChanged(null);
+        return;
+      }
+
+      widget.onLabelSizeChanged(labelSize);
+
+    //  final itemOfMarkets = await _logic.fetchItemOfMarkets(
+    //   Market.instance!.marketId,
+    //  );
+    }
+    catch (e) {
+      debugPrint('$cn.$fn, $e');
+    }
+    finally {
+      debugPrint('$cn.$fn: $END');
+    }
+  }
+
+  void _scheduleLabelSizeLoad(String? brandName) {
+    const fn = '_scheduleLabelSizeLoad';
+    try {
+      debugPrint('$cn.$fn: $START');
       final target = _findBrandByName(brandName);
       if (target == null) {
         _labelSizesBrandId = null;
         LabelSize.setDatas(<LabelSize>[]);
         setState(() {});
-        widget.onLabelSizeChanged(null);
+        _handleLabelSizeChanged(null);
         return;
       }
 
       if (_labelSizesBrandId == target.brandId && LabelSize.datas != null) {
         final current = LabelSize.datas ?? const <LabelSize>[];
         if (current.isEmpty) {
-          widget.onLabelSizeChanged(null);
+          _handleLabelSizeChanged(null);
         } else {
           final resolved = _logic.resolveSelectedLabelSize(
             current,
@@ -99,7 +124,7 @@ class _HomePageManagerState extends State<HomePageManager> {
           );
           final fallback = _logic.firstLabelSizeName(current);
           if (resolved == null && fallback != null) {
-            widget.onLabelSizeChanged(fallback);
+            _handleLabelSizeChanged(fallback);
           }
         }
         return;
@@ -117,7 +142,7 @@ class _HomePageManagerState extends State<HomePageManager> {
         setState(() {});
 
         if (labelSizes.isEmpty) {
-          widget.onLabelSizeChanged(null);
+          _handleLabelSizeChanged(null);
           return;
         }
 
@@ -125,26 +150,27 @@ class _HomePageManagerState extends State<HomePageManager> {
           labelSizes,
           widget.selectedLabelSize,
         );
+
         final fallback = _logic.firstLabelSizeName(labelSizes);
-        if (resolved == null && fallback != null) {
-          widget.onLabelSizeChanged(fallback);
-        }
-      }).catchError((_) {
+        final selected = resolved ?? fallback ?? widget.selectedLabelSize;
+        _handleLabelSizeChanged(selected);
+      })
+      .catchError((_) {
         if (!mounted || token != _labelLoadToken) return;
         _labelSizesBrandId = null;
         setState(() {});
       });
     }
     finally {
-      debugPrint('$cName.$fName: $END');
+      debugPrint('$cn.$fn: $END');
     }
   }
 
   Future<void> _loadBrands() async {
     void afterSnackBarVisible() async {
-      const fName = '_loadBrands';
+      const fn = '_loadBrands';
       try {
-        debugPrint('$cName.$fName: $START');
+        debugPrint('$cn.$fn: $START');
         final brands = await _logic.fetchBrands(Customer.instance!.customerId);
         if (!mounted) return;
 
@@ -174,7 +200,7 @@ class _HomePageManagerState extends State<HomePageManager> {
       }
       finally {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        debugPrint('$cName.$fName: $END');
+        debugPrint('$cn.$fn: $END');
       }
     }
 
@@ -396,7 +422,7 @@ class _HomePageManagerState extends State<HomePageManager> {
             ),
             child: _TopControlArea(
               onBrandChanged: _handleBrandChanged,
-              onLabelSizeChanged: widget.onLabelSizeChanged,
+              onLabelSizeChanged: _handleLabelSizeChanged,
               brandItems: brandItems,
               resolvedBrand: resolvedBrand,
               labelItems: labelItems,
@@ -738,4 +764,5 @@ class _PlaceholderTab extends StatelessWidget {
     return Center(child: Text('$title (준비 중)'));
   }
 }
+
 

@@ -68,16 +68,13 @@ class BrandDAO extends DAO {
 	  ORDER BY RICH_BRAND_ORDER ASC
   ''';
 
-  static Future<List<Brand>?> getByCustomerIdByBrandOrder(
-    int customerId,
-  ) async {
+  static Future<List<Brand>?> getByCustomerIdByBrandOrder(int customerId) async {
     const fn = 'getByCustomerIdByBrandOrder';
     debugPrint('$cn.$fn: $START, customerId:$customerId');
 
     try {
       final res = await DbClient.instance.getDataWithParams(
-        '$SelectSql $WhereSqlCustomerId $OrderSqlByBrandrder',
-        { 'customerId': customerId }
+        '$SelectSql $WhereSqlCustomerId $OrderSqlByBrandrder', { 'customerId': customerId }
       );
 
       final rows = DAO.getRowsFromResult(res);
